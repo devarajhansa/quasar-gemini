@@ -6,13 +6,15 @@
       <!-- API Key Input (for local testing) -->
       <q-input
         v-model="apiKey"
-        label="Gemini API Key"
         type="password"
+        label="Gemini API Key"
         outlined
         dense
         class="q-mb-md"
       />
-
+ <!--
+              type="password"
+-->
       <!-- File / Camera Picker -->
       <q-file
         v-model="file"
@@ -56,7 +58,7 @@ import { useQuasar, copyToClipboard } from 'quasar';
 import { GoogleGenAI, Type } from '@google/genai';
 
 const $q = useQuasar();
-const apiKey = ref('AQ.Ab8RN6If147s2SHLtO6yaAjp9V_M7m8KcwKcZEySNIiek1Q9lA'); // Paste your GEMINI_API_KEY here or type it in the UI
+const apiKey = ref(import.meta.env.QCLI_GEMINI_API_KEY);
 const file = ref(null);
 const loading = ref(false);
 const jsonResult = ref('');
