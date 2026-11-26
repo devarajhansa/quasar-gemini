@@ -31,7 +31,7 @@ app.post('/api/gemini', async (req, res) => {
 const spaPath = path.join(__dirname, 'dist', 'spa');
 app.use(express.static(spaPath));
 
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(spaPath, 'index.html'));
 });
 
