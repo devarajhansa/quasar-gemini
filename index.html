@@ -14,7 +14,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';<% if (ctx.dev) { %> connect-src 'self' ws://localhost:*; worker-src 'self' blob:;<% } %>"
     />-->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws://localhost:* https://generativelanguage.googleapis.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws://localhost:*; media-src *; img-src 'self' data: content: blob:; worker-src 'self' blob: https://generativelanguage.googleapis.com; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval';">
 
 
     <link
