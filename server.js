@@ -9,7 +9,55 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json({ limit: '20mb' }));
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Free-tier models tried in order if one hits quota (429) or overload (503)
+const MODELS = [
+  'gemini-4-hydrogen',
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash-lite',
+];
+
+const INVOICE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    invoice_number: { type: Type.STRING },
+    invoice_date: { type: Type.STRING },
+    consignor: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        gstin: { type: Type.STRING },
+        city: { type: Type.STRING },
+      },
+    },
+    consignee: {
+      type: Type.OBJECT,
+      properties: {
+        name: { type: Type.STRING },
+        gstin: { type: Type.STRING },
+        address: { type: Type.STRING },
+        city: { type: Type.STRING },
+        pincode: { type: Type.STRING },
+        phone: { type: Type.STRING },
+      },
+    },
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          description: { type: Type.STRING },
+          hsn_code: { type: Type.STRING },
+          quantity: { type: Type.NUMBER },
+          unit: { type: Type.STRING },
+          taxable_value: { type: Type.NUMBER },
+        },
+      },
+    },
+    declared_invoice_value: { type: Type.NUMBER },
+    eway_bill_number: { type: Type.STRING },
+  },
+};
 
 app.post('/api/gemini', async (req, res) => {
   try {
@@ -24,12 +72,12 @@ app.post('/api/gemini', async (req, res) => {
     }
 
     const ai = new GoogleGenAI({ apiKey });
-    let response = null;
+    let lastError = null;
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (const modelName of MODELS) {
       try {
-        response = await ai.models.generateContent({
-          model: 'gemini-3.6-flash',
+        const response = await ai.models.generateContent({
+          model: modelName,
           contents: [
             {
               inlineData: {
@@ -41,61 +89,47 @@ app.post('/api/gemini', async (req, res) => {
           ],
           config: {
             responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                invoice_number: { type: Type.STRING },
-                invoice_date: { type: Type.STRING },
-                consignor: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    gstin: { type: Type.STRING },
-                    city: { type: Type.STRING },
-                  },
-                },
-                consignee: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    gstin: { type: Type.STRING },
-                    address: { type: Type.STRING },
-                    city: { type: Type.STRING },
-                    pincode: { type: Type.STRING },
-                    phone: { type: Type.STRING },
-                  },
-                },
-                items: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      description: { type: Type.STRING },
-                      hsn_code: { type: Type.STRING },
-                      quantity: { type: Type.NUMBER },
-                      unit: { type: Type.STRING },
-                      taxable_value: { type: Type.NUMBER },
-                    },
-                  },
-                },
-                declared_invoice_value: { type: Type.NUMBER },
-                eway_bill_number: { type: Type.STRING },
-              },
-            },
+            responseSchema: INVOICE_SCHEMA,
           },
         });
-        break;
+
+        if (!response?.text) {
+          throw new Error(`Empty response from ${modelName}`);
+        }
+
+        // Parse extracted JSON and inject the model name that succeeded
+        const extractedData = JSON.parse(response.text);
+        const resultWithModel = {
+          _model_used: modelName,
+          ...extractedData,
+        };
+
+        return res.json({
+          text: JSON.stringify(resultWithModel),
+          model: modelName,
+        });
       } catch (err) {
+        lastError = err;
         const msg = err.message || '';
-        if (attempt < 3 && (msg.includes('503') || msg.includes('high demand') || msg.includes('429'))) {
-          await sleep(attempt * 2000);
+        const isRetriable =
+          msg.includes('429') ||
+          msg.includes('503') ||
+          msg.includes('404') ||
+          msg.includes('quota') ||
+          msg.includes('high demand') ||
+          msg.includes('not found');
+
+        if (isRetriable) {
+          console.warn(`Model ${modelName} unavailable (${msg}), falling back to next model...`);
           continue;
         }
         throw err;
       }
     }
 
-    res.json({ text: response.text });
+    res.status(503).json({
+      error: lastError?.message || 'All free-tier models reached quota or failed',
+    });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Scan failed' });
   }
@@ -109,3 +143,5 @@ app.get('/{*splat}', (req, res) => {
 });
 
 app.listen(process.env.PORT || 3000);
+
+app.listen(process.env.PORT || 3000, () => console.log('Server started.'));

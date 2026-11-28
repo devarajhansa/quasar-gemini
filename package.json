@@ -18,7 +18,7 @@
     "lint": "oxfmt && oxlint --fix",
     "lint:check": "oxfmt --check && oxlint",
     "start": "node server.js",
-    "dev": "quasar dev",
+    "dev": "concurrently \"node --env-file=.env server.js\" \"quasar dev\"",
     "build": "quasar build",
     "postinstall": "quasar prepare --silent"
   },
@@ -35,6 +35,7 @@
   "devDependencies": {
     "@quasar/app-vite": "^3.10.4",
     "autoprefixer": "^10.4.27",
+    "concurrently": "^10.0.7",
     "oxfmt": "^0.x",
     "oxlint": "^1.x",
     "postcss": "^8.5.8"
